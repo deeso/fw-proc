@@ -1,0 +1,28 @@
+[firewall-log-processor]
+    start = '1970-03-01, 00:00:00'
+    window = 60
+    # where we read the firewall logs from
+    [firewall-log-processor.source]
+        type = 'mongodb'
+        host = 'mongo-server'
+        port = 27017
+        db = 'fluent'
+        collection = 'firewall-raw'
+        time_key = 'time'
+
+    # keep track of processed windows
+    [firewall-log-processor.state]
+        type = 'mongodb'
+        host = 'mongo-server'
+        port = 27017
+        db = 'firewall-processor'
+        collection = 'state'
+        target_db = 'fluent'
+        target_collection = 'firewall-raw'
+        target_key = 'time'
+
+    # forward processed firewall logs
+    [firewall-log-processor.fluentd]
+        host = 'fluent-capture'
+        port = 42001
+
