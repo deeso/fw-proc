@@ -1,0 +1,5 @@
+regex
+toml
+pygrok
+pymongo
+https://github.com/deeso/rule-chains/tarball/master#egg=rule-chains

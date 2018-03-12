@@ -2,7 +2,8 @@ from pymongo import MongoClient
 from datetime import datetime
 from datetime import timedelta
 
-
+TS_FMT = '%Y-%m-%dT%H:%M:%S'
+TS_FMT_D = '%Y-%m-%dT%H:%M:%S.%f'
 ID = '_id'
 
 
@@ -38,6 +39,18 @@ class Client(object):
         c.close()
         return evts
 
+    def find_min(self, id_key):
+        query = {id_key: {"$exists": True}}
+        c = self.new_client()
+        col = c[self.database][self.collection]
+        evt = col.find_one(query, sort=[(id_key, 1)])
+        return evt[id_key]
+
+    def find_one(self, query):
+        c = self.new_client()
+        col = c[self.database][self.collection]
+        return col.find_one(query)
+
 
 class FirewallProcMongoClient(Client):
 
@@ -49,39 +62,51 @@ class FirewallProcMongoClient(Client):
                  target_host=None, target_port=None):
         Client.__init__(self, host, port, database, collection)
         target_host = host if target_host is None else target_host
-        target_port = host if target_port is None else target_port
+        target_port = port if target_port is None else target_port
 
         self.target = Client(target_host, target_port,
                              target_db, target_collection)
-        start_time = datetime.utcnow() if start_time is None\
-            else start_time
-        self.init_state()
+
+        if start_time is None:
+            start_time = datetime.utcnow()
+        elif start_time.find('.') > 0:
+            start_time = datetime.strptime(start_time, TS_FMT_D)
+        else:
+            start_time = datetime.strptime(start_time, TS_FMT)
+
+        mt = self.target.find_min(target_key)
+        if start_time < mt:
+            start_time = mt
+
+        self.target_key = target_key
+        self.init_state(start_time)
+        self.window_secs = window_secs
 
     def init_state(self, start_time):
         r = {'lock': False,
              'start_time': start_time,
              'last_look': datetime.utcnow(),
              }
-        v = self.new_client().find_one({})
+        v = self.find_one({})
         if v is None:
-            self.new_client().insert(r)
+            self.insert(r)
             return True
         return False
 
     # terrible synchronization pattern
     def set_lock(self):
-        v = self.new_client().find_one({})
+        v = self.find_one({})
         if not v['lock']:
             v['lock'] = True
             k = str(v[ID])
             del v[ID]
-            if not self.new_client().find_one({})['lock']:
-                self.new_client().upsert(ID, k, v)
+            if not self.find_one({})['lock']:
+                self.upsert(ID, k, v)
                 return True
         return False
 
     def release_lock(self, last_look=None, new_start_time=None):
-        v = self.new_client().find_one({})
+        v = self.find_one({})
         v['last_look'] = last_look if last_look is not None \
             else v['last_look']
         v['start_time'] = new_start_time if new_start_time is not None \
@@ -90,7 +115,7 @@ class FirewallProcMongoClient(Client):
             v['lock'] = True
             k = str(v[ID])
             del v[ID]
-            self.new_client().upsert(ID, k, v)
+            self.upsert(ID, k, v)
             return True
         return False
 
@@ -98,7 +123,7 @@ class FirewallProcMongoClient(Client):
         got_lock = self.set_lock()
         if not got_lock:
             return []
-        v = self.new_client().find_one({})
+        v = self.find_one({})
         start = v['start_time']
         end = start + timedelta(seconds=self.window_secs)
         events = self.target.find_in_time_range(self.target_key, start, end)

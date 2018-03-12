@@ -1,20 +1,19 @@
-[firewall-log-processor]
+[pfsense-log-processor]
 
     # keep track of processed windows
-    [firewall-log-processor.mongoclient]
+    [pfsense-log-processor.mongo-client]
         host = 'mongo-server'
         port = 27017
-        db = 'firewall-processor'
+        database = 'firewall-processor'
         collection = 'state'
         target_db = 'fluent'
         target_collection = 'firewall-raw'
         target_key = 'time'
-        start = '1970-03-01 00:00:00'
+        start_time = '2017-02-01T00:00:00.0'
         window_secs = 60
 
-
     # forward processed firewall logs
-    [firewall-log-processor.fluentdclient]
+    [pfsense-log-processor.fluentd-client]
         host = 'fluent-capture'
         port = 42001
 
