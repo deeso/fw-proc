@@ -27,7 +27,18 @@ class Client(object):
     def upsert(self, id_key, id_key_val, json_data):
         c = self.new_client()
         col = c[self.database][self.collection]
-        r = col.update({id_key: id_key_val}, json_data)
+        d = col.find_one({id_key: id_key_val})
+        r = None
+        # print (d)
+        if d is not None:
+            d.update(json_data)
+            r = col.update({id_key: id_key_val}, {'$set': d})
+            # print (r)
+        else:
+            _jd = json_data.copy()
+            _jd[id_key] = id_key_val
+            r = col.insert(_jd)
+            # print (r)
         c.close()
         return r
 
@@ -98,8 +109,9 @@ class FirewallProcMongoClient(Client):
         v = self.find_one({})
         if not v['lock']:
             v['lock'] = True
-            k = str(v[ID])
+            k = v[ID]
             del v[ID]
+            # print (v)
             if not self.find_one({})['lock']:
                 self.upsert(ID, k, v)
                 return True
@@ -107,14 +119,17 @@ class FirewallProcMongoClient(Client):
 
     def release_lock(self, last_look=None, new_start_time=None):
         v = self.find_one({})
+        # print (last_look, new_start_time)
+        # print (v)
         v['last_look'] = last_look if last_look is not None \
             else v['last_look']
         v['start_time'] = new_start_time if new_start_time is not None \
             else v['start_time']
-        if not v['lock']:
-            v['lock'] = True
-            k = str(v[ID])
+        if v['lock']:
+            v['lock'] = False
+            k = v[ID]
             del v[ID]
+            # print(v)
             self.upsert(ID, k, v)
             return True
         return False
