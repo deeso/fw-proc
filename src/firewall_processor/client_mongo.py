@@ -66,17 +66,18 @@ class Client(object):
 class FirewallProcMongoClient(Client):
 
     def __init__(self, host='127.0.0.1', port=27017,
-                 database='firewall-processor',
-                 collection='state', start_time=None, lock_key='lock',
-                 window_secs=60, target_db='fluent',
-                 target_collection='firewall-raw', target_key='time',
-                 target_host=None, target_port=None):
-        Client.__init__(self, host, port, database, collection)
-        target_host = host if target_host is None else target_host
-        target_port = port if target_port is None else target_port
+                 dest_database='firewall-processor',
+                 dest_collection='state', start_time=None,
+                 lock_key='lock',
+                 window_secs=60, source_db='fluent',
+                 source_collection='firewall-raw', source_key='time',
+                 source_host=None, source_port=None):
+        Client.__init__(self, host, port, dest_database, dest_collection)
+        source_host = host if source_host is None else source_host
+        source_port = port if source_port is None else source_port
 
-        self.target = Client(target_host, target_port,
-                             target_db, target_collection)
+        self.source = Client(source_host, source_port,
+                             source_db, source_collection)
 
         if start_time is None:
             start_time = datetime.utcnow()
@@ -85,11 +86,11 @@ class FirewallProcMongoClient(Client):
         else:
             start_time = datetime.strptime(start_time, TS_FMT)
 
-        mt = self.target.find_min(target_key)
+        mt = self.source.find_min(source_key)
         if start_time < mt:
             start_time = mt
 
-        self.target_key = target_key
+        self.source_key = source_key
         self.init_state(start_time)
         self.window_secs = window_secs
 
@@ -141,6 +142,6 @@ class FirewallProcMongoClient(Client):
         v = self.find_one({})
         start = v['start_time']
         end = start + timedelta(seconds=self.window_secs)
-        events = self.target.find_in_time_range(self.target_key, start, end)
+        events = self.source.find_in_time_range(self.source_key, start, end)
         self.release_lock(last_look=datetime.utcnow(), new_start_time=end)
         return events

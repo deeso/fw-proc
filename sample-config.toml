@@ -4,11 +4,11 @@
     [pfsense-log-processor.mongo-client]
         host = 'mongo-server'
         port = 27017
-        database = 'firewall-processor'
-        collection = 'state'
-        target_db = 'fluent'
-        target_collection = 'firewall-raw'
-        target_key = 'time'
+        dest_database = 'firewall-processor'
+        dest_collection = 'state'
+        source_db = 'fluent'
+        source_collection = 'firewall-raw'
+        source_key = 'time'
         start_time = '2017-02-01T00:00:00.0'
         window_secs = 60
 
